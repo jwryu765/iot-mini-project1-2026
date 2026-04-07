@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="Tablepass.vcxproj" />
+  <Project Path="Tablepass.vcxproj" Id="59e153c6-0f86-4788-99ee-09b589e6830f" />
 </Solution>

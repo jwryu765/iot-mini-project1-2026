@@ -15,7 +15,6 @@ struct Customer {
     int estimatedTime;
 };
 
-// 전역 변수 공유 선언
 extern vector<Customer> waitingQueue;
 extern int nextWaitingNum;
 
@@ -28,10 +27,14 @@ bool isValidPhone(const string& phone);
 void saveData();
 void loadData();
 
-// 핵심 비즈니스 로직 및 UI 출력
+// [제안서 핵심 기능 로직]
 int calculateEstimatedTime(int partySize);
+void recalculateAllWaitTimes(); // 기능 2: 대기열 전체 시간 실시간 업데이트
+void printStatisticsReport();   // 기능 3: 예측 정확도 통계 리포트
+
+// UI 출력 및 메뉴
 void printMainMenu();
-void printQueueTable(); // [추가] 표 그리기 전용 함수
+void printQueueTable();
 void registerCustomer();
 void viewQueue();
 void adminMode();
