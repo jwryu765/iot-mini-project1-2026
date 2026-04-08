@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="Wordquiz.vcxproj" Id="56503727-3b0a-4542-aae2-f2b8259f054c" />
+</Solution>
