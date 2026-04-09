@@ -1,92 +1,143 @@
-/*
-    **기능 추가할 것**
-    
-    1. 전체 단어장과 오답 단어장을 나누기
-	2. 단어장에 단어 추가할 때, 이미 존재하는 단어인지 체크하기
-	3. 단어장 저장 기능 (CSV로 저장)
-	4. 기존 단어장에 새로운 단어 추가할 때, 기존 단어장과 병합하여 저장하기
-	5. 콘솔을 끌때 자동 저장 기능 탑재하기 (프로그램 종료 시점에 단어장 저장), 다시 킬때 csv 안불러와도 되게하기
-	6. 3번 이상 틀린 단어는 매우 어려운 단어로 분류하여 3번 틀린 단어만 나오는 퀴즈 모드 추가하기
-*/
-
 #include "VocaManager.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <algorithm> 
 #include <random>    
+#include <iomanip> // 표 출력을 위한 헤더 추가
 
 using namespace std;
 
-// 다중 뜻(쉼표 여러 개) 지원 버전으로 업그레이드된 로드 함수
+// [수정됨] 엑셀 줄바꿈(Alt+Enter) 처리 및 자동 불러오기
 void VocaManager::loadFromCSV(const string& filename) {
     ifstream file(filename);
     if (!file.is_open()) {
-        cout << "CSV 파일을 찾을 수 없습니다! (voca.csv 파일 위치를 확인해주세요)" << endl;
+        cout << "voca.csv 파일이 없습니다. 새로 시작합니다!" << endl;
+        system("pause > nul");
         return;
     }
 
     string line;
+    string fullLine = "";
+    bool inQuotes = false;
     wordList.clear();
-    int count = 0;
 
     while (getline(file, line)) {
-        if (line.empty()) continue;
-        // 윈도우 개행문자(\r) 제거
-        if (line.back() == '\r') line.pop_back();
+        if (line.empty() && !inQuotes) continue;
+        if (!line.empty() && line.back() == '\r') line.pop_back();
 
-        // 1. 뒤에서부터 쉼표 2개를 찾아 레벨과 오답횟수 위치를 확보합니다.
-        size_t lastComma = line.find_last_of(',');
-        size_t secondLastComma = (lastComma != string::npos) ? line.find_last_of(',', lastComma - 1) : string::npos;
+        // 쌍따옴표 개수를 세서 현재 줄바꿈이 따옴표 내부인지 확인
+        for (char c : line) {
+            if (c == '"') inQuotes = !inQuotes;
+        }
 
-        // 2. 맨 앞에서 첫 번째 쉼표를 찾아 영단어 위치를 확보합니다.
-        size_t firstComma = line.find_first_of(',');
+        if (fullLine.empty()) {
+            fullLine = line;
+        }
+        else {
+            // 따옴표 내부에서 줄바꿈이 일어난 경우 공백으로 묶어서 한 줄로 합침
+            fullLine += " " + line;
+        }
 
-        // 형식이 맞지 않는 줄은 건너뜁니다.
-        if (firstComma == string::npos || secondLastComma == string::npos || firstComma >= secondLastComma) continue;
+        if (inQuotes) {
+            continue; // 따옴표가 아직 안 닫혔으면 다음 줄을 마저 읽어옴
+        }
 
-        // 3. 데이터 추출 (핵심!)
-        string eng = line.substr(0, firstComma);
+        // --- 여기서부터는 완전한 한 줄(fullLine)을 분석 ---
+        size_t lastComma = fullLine.find_last_of(',');
+        size_t secondLastComma = (lastComma != string::npos) ? fullLine.find_last_of(',', lastComma - 1) : string::npos;
+        size_t firstComma = fullLine.find_first_of(',');
 
-        // 3번 항목(또 다른 뜻)까지 포함하여 첫 쉼표와 뒤에서 두번째 쉼표 사이를 통째로 뜻으로 합칩니다.
-        string kor = line.substr(firstComma + 1, secondLastComma - firstComma - 1);
+        if (firstComma == string::npos || secondLastComma == string::npos || firstComma >= secondLastComma) {
+            fullLine = ""; // 형식 오류시 초기화 후 건너뜀
+            continue;
+        }
 
-        string lvlStr = line.substr(secondLastComma + 1, lastComma - secondLastComma - 1);
-        string failStr = line.substr(lastComma + 1);
+        string eng = fullLine.substr(0, firstComma);
+        string kor = fullLine.substr(firstComma + 1, secondLastComma - firstComma - 1);
+
+        // 엑셀에서 줄바꿈 시 자동으로 붙이는 양끝 큰따옴표(" ") 제거
+        if (kor.length() >= 2 && kor.front() == '"' && kor.back() == '"') {
+            kor = kor.substr(1, kor.length() - 2);
+        }
+
+        string lvlStr = fullLine.substr(secondLastComma + 1, lastComma - secondLastComma - 1);
+        string failStr = fullLine.substr(lastComma + 1);
 
         try {
-            int levelVal = stoi(lvlStr);
-            int failVal = stoi(failStr);
-            wordList.push_back(Word(eng, kor, levelVal, failVal));
+            wordList.push_back(Word(eng, kor, stoi(lvlStr), stoi(failStr)));
         }
         catch (...) {
-            // 숫자가 아닌 값이 들어있을 경우 0으로 기본 세팅하여 튕김 방지
             wordList.push_back(Word(eng, kor, 0, 0));
         }
+
+        fullLine = ""; // 다음 단어를 위해 초기화
     }
     file.close();
-    cout << "🎉 총 " << wordList.size() << "개의 단어를 성공적으로 불러왔습니다!" << endl;
+}
+
+// CSV 저장 기능 탑재 (기존 데이터와 병합하여 최신 상태 저장)
+void VocaManager::saveToCSV(const string& filename) {
+    ofstream file(filename);
+    for (const auto& w : wordList) {
+        file << w.english << "," << w.korean << "," << w.level << "," << w.failCount << "\n";
+    }
+    file.close();
 }
 
 void VocaManager::addWord() {
     string eng, kor;
     cout << "\n[단어 수동 추가]" << endl;
-    cout << "영어: "; cin >> eng;
-    cout << "한글: "; cin >> kor;
+    cout << "영어: ";
+    cin >> eng;
+
+    // 중복 단어 체크 로직
+    for (const auto& w : wordList) {
+        if (w.english == eng) {
+            cout << "⚠️ 이미 존재하는 단어입니다! (현재 뜻: " << w.korean << ")" << endl;
+            return;
+        }
+    }
+
+    cin.ignore(); // 버퍼 비우기
+    cout << "한글 (여러 뜻은 쉼표로 구분해서 작성): ";
+    getline(cin, kor); // 띄어쓰기나 쉼표를 포함하여 입력받기
+
     wordList.push_back(Word(eng, kor));
-    cout << "✅ 추가 완료!" << endl;
+
+    // 단어 추가 후 즉시 저장하여 기존 단어장과 병합
+    saveToCSV("voca.csv");
+    cout << "✅ 추가 및 저장 완료!" << endl;
+}
+
+// 전체 단어장 보기 (표 형태 출력 및 쉼표 포함 뜻 출력)
+void VocaManager::showAllWords() {
+    cout << "\n=======================================================" << endl;
+    cout << "                    📚 전체 단어장                     " << endl;
+    cout << "=======================================================" << endl;
+
+    // 표 헤더 생성 (영단어 공간 20칸 확보)
+    cout << left << setw(20) << "  [ 영단어 ]" << " | " << "[ 한글 뜻 ]" << endl;
+    cout << "-------------------------------------------------------" << endl;
+
+    for (const auto& w : wordList) {
+        cout << "  " << left << setw(18) << w.english << " | " << w.korean << endl;
+    }
+
+    cout << "=======================================================\n" << endl;
+    cout << "총 " << wordList.size() << "개의 단어가 있습니다." << endl;
 }
 
 void VocaManager::showUnknownWords() {
-    cout << "\n=================================" << endl;
-    cout << "        📖 모르는 단어장        " << endl;
-    cout << "=================================" << endl;
+    cout << "\n=======================================================" << endl;
+    cout << "                   📖 모르는 단어장                    " << endl;
+    cout << "=======================================================" << endl;
 
     int count = 0;
     for (const auto& w : wordList) {
         if (w.level < 2) {
-            cout << "- " << w.english << " : " << w.korean
-                << " (오답 횟수: " << w.failCount << ")" << endl;
+            cout << "- " << left << setw(18) << w.english << " : " << w.korean
+                << " (오답: " << w.failCount << "회)" << endl;
             count++;
         }
     }
@@ -97,12 +148,13 @@ void VocaManager::showUnknownWords() {
     else {
         cout << "\n현재 복습이 필요한 단어: " << count << "개" << endl;
     }
-    cout << "=================================\n" << endl;
+    cout << "=======================================================\n" << endl;
 }
 
 void VocaManager::runQuiz(bool isIntensive) {
     if (wordList.empty()) {
-        cout << "단어장이 비어있습니다. 먼저 불러오기(4번)를 해주세요." << endl;
+        cout << "단어장이 비어있습니다. 단어를 먼저 추가해주세요." << endl;
+        system("pause > nul");
         return;
     }
 
@@ -115,6 +167,7 @@ void VocaManager::runQuiz(bool isIntensive) {
 
     if (targetWords.empty()) {
         cout << "모든 단어를 외웠습니다! 출제할 단어가 없습니다." << endl;
+        system("pause > nul");
         return;
     }
 
@@ -122,7 +175,6 @@ void VocaManager::runQuiz(bool isIntensive) {
     mt19937 g(rd());
     shuffle(targetWords.begin(), targetWords.end(), g);
 
-    // 일반 퀴즈는 20개, 집중 퀴즈는 모르는 거 전부!
     int maxQuestions = isIntensive ? (int)targetWords.size() : min((int)targetWords.size(), 20);
     int count = 0;
     int score = 0;
@@ -150,8 +202,12 @@ void VocaManager::runQuiz(bool isIntensive) {
         }
     }
 
+    // 정답률 계산 및 표시 로직
+    double accuracy = (count > 0) ? ((double)score / count) * 100.0 : 0.0;
+
     cout << "\n=================================" << endl;
-    cout << " 🎉 결과: " << score << " / " << count << endl;
+    cout << " 🎉 결과: " << score << " / " << count << " 맞춤" << endl;
+    cout << " 🎯 정답률: " << fixed << setprecision(1) << accuracy << "%" << endl;
     cout << "=================================" << endl;
 
     cout << "\n메인 메뉴로 돌아가려면 아무 키나 누르세요..." << endl;
