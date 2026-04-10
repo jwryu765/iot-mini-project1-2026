@@ -1,33 +1,46 @@
 #include <iostream>
-#include <mysqlx/xdevapi.h> // MySQL Connector/C++ 9.6 헤더
+#include <mysql.h>
+#include <iomanip>
+
+#pragma comment(lib, "libmysql.lib")
 
 using namespace std;
-using namespace mysqlx;
 
-int main_old() {
-    try {
-        // 1. 데이터베이스 연결 설정
-        // 주소(localhost), 포트(33060 - X Protocol 기본포트), 아이디, 비밀번호
-        // 주의: 일반 3306 포트가 아니라 33060 포트를 사용하는 경우가 많습니다.
-        Session sess("localhost", 3306, "root", "my123456");
+int main() {
+    MYSQL* conn = mysql_init(NULL);
+    MYSQL_RES* res;
+    MYSQL_ROW row;
 
-        cout << "데이터베이스 연결에 성공했습니다!" << endl;
+    // 접속 정보 확인: DB 이름이 'Wordquiz' (대소문자 주의!)
+    if (mysql_real_connect(conn, "127.0.0.1", "root", "my123456", "Wordquiz", 3306, NULL, 0)) {
+        cout << "[성공] 데이터베이스에 접속했습니다." << endl;
 
-        // 2. 현재 서버의 스키마(데이터베이스) 목록 출력 테스트
-        cout << "연결된 서버의 스키마 목록:" << endl;
-        for (auto schema : sess.getSchemas()) {
-            cout << "- " << schema.getName() << endl;
+        // 쿼리문 실행 (마지막에 세미콜론 ; 넣지 마세요!)
+        if (mysql_query(conn, "SELECT word, meaning FROM words") == 0) {
+            res = mysql_store_result(conn);
+
+            cout << "------------------------------------------" << endl;
+            cout << left << setw(15) << "영어 단어" << " | " << "한글 뜻" << endl;
+            cout << "------------------------------------------" << endl;
+
+            int count = 0;
+            while ((row = mysql_fetch_row(res))) {
+                cout << left << setw(15) << row[0] << " | " << row[1] << endl;
+                count++;
+            }
+
+            if (count == 0) {
+                cout << "데이터가 존재하지만 불러오지 못했습니다. 커밋 여부를 확인하세요." << endl;
+            }
+
+            mysql_free_result(res);
         }
-
-        sess.close(); // 연결 종료
-
     }
-    catch (const mysqlx::Error& err) {
-        // 연결 실패 시 에러 메시지 출력
-        cerr << "데이터베이스 연결 실패!" << endl;
-        cerr << "에러 내용: " << err.what() << endl;
-        return 1;
+    else {
+        cout << "[연결 실패] 에러: " << mysql_error(conn) << endl;
     }
 
+    mysql_close(conn);
+    system("pause");
     return 0;
 }

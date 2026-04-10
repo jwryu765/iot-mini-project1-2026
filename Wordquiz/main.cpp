@@ -1,19 +1,26 @@
 ﻿#include <iostream>
 #include "VocaManager.h"
+
 using namespace std;
 
 int main() {
-    // 🔽 [수정된 부분] 긴 단어 뜻이 밀리지 않도록 콘솔 창 크기를 넓게 고정합니다.
-    system("mode con cols=100 lines=30");
+    // 1. 윈도우 콘솔의 인코딩을 강제로 UTF-8(65001)로 변경하여 한글 깨짐 완벽 방지
+    system("chcp 65001 > nul");
 
     VocaManager manager;
     int choice;
 
-    // [기능 7] 프로그램 시작 시 자동으로 CSV 불러오기
-    manager.loadFromCSV("voca.csv");
+    cout << "데이터베이스에 연결하는 중..." << endl;
+
+    // DB 연결 및 단어 데이터 불러오기
+    if (!manager.init()) {
+        cout << "❌ DB 연결에 실패했습니다. 프로그램을 종료합니다." << endl;
+        system("pause");
+        return 1;
+    }
 
     while (true) {
-        system("cls"); // 화면 지우기 (Windows 기준)
+        system("cls"); // 화면 지우기
         cout << "=================================" << endl;
         cout << "            Word-Quiz            " << endl;
         cout << "=================================" << endl;
@@ -22,7 +29,7 @@ int main() {
         cout << "3. 📚 전체 단어장 보기" << endl;
         cout << "4. 📖 모르는 단어장 보기" << endl;
         cout << "5. ➕ 단어 수동 추가" << endl;
-        cout << "0. 🚪 프로그램 종료 (자동 저장)" << endl;
+        cout << "0. 🚪 프로그램 종료 (DB 실시간 저장)" << endl;
         cout << "=================================" << endl;
         cout << "메뉴 선택: ";
         cin >> choice;
@@ -34,11 +41,11 @@ int main() {
             manager.runQuiz(true);
         }
         else if (choice == 3) {
-            manager.showAllWords(); // 전체 단어장 표로 보기
+            manager.showAllWords();
             system("pause > nul");
         }
         else if (choice == 4) {
-            manager.showUnknownWords(); // 모르는 단어장 따로 보기
+            manager.showUnknownWords();
             system("pause > nul");
         }
         else if (choice == 5) {
@@ -46,9 +53,7 @@ int main() {
             system("pause > nul");
         }
         else if (choice == 0) {
-            // [기능 7] 콘솔을 끌 때 자동 저장
-            manager.saveToCSV("voca.csv");
-            cout << "프로그램을 종료합니다. 단어장이 안전하게 저장되었습니다!" << endl;
+            cout << "프로그램을 종료합니다. 모든 데이터는 안전하게 DB에 저장되어 있습니다!" << endl;
             break;
         }
         else {
