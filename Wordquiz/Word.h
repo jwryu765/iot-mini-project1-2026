@@ -4,9 +4,9 @@
 
 class Word {
 public:
-    int id;               // DB의 고유 번호 (Primary Key)
-    std::string english;  // std:: 추가
-    std::string korean;   // std:: 추가
+    int id;
+    std::string english;
+    std::string korean;
     int level;
     int failCount;
     long long nextReview;
