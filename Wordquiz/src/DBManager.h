@@ -23,6 +23,8 @@ public:
     bool resetAllWordStats();
     bool deleteWord(const std::string& eng);
     // ✨ [관리자용] 모든 유저의 점수와 레벨을 초기화하는 함수 추가
+    std::vector<Word> searchWords(const std::string& keyword);
+    bool deleteUser(const std::string& targetId);
     bool resetMemberStats();
     bool registerUser(const std::string& username, const std::string& password);
     bool loginUser(const std::string& username, const std::string& password);

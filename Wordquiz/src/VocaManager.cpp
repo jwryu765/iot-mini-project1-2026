@@ -10,12 +10,12 @@
 #include <limits> 
 #include <cmath>  
 #include <cctype>
-#include <windows.h> // ✨ 윈도우 효과음(Beep)을 내기 위한 헤더
-#include <fstream>   // ✨ [v6.2 추가] 파일 입출력을 위한 헤더
+#include <windows.h> 
+#include <fstream>   
+#include <conio.h>   
 
 using namespace std;
 
-// === [ 유효성 검사 및 안전 입력 함수 ] ===
 bool isValidEnglish(const string& str) {
     if (str.empty() || str == "0") return true;
     bool hasAlphabet = false;
@@ -83,7 +83,6 @@ string formatLeft(const string& str, int targetWidth) {
     return str + string(padding, ' ');
 }
 
-// === [ 기본 기능 ] ===
 bool VocaManager::init() {
     if (db.connect()) return true;
     return false;
@@ -126,10 +125,9 @@ void VocaManager::addWord() {
     else cout << "❌ DB 저장 실패." << endl;
 }
 
-// ✨ [v6.2 추가] CSV 파일에서 단어 대량 추가
 void VocaManager::loadFromCSV() {
     cout << "\n=================================" << endl;
-    cout << "      📂 CSV 파일 대량 추가      " << endl;
+    cout << "     📂 CSV 파일로 단어 추가     " << endl;
     cout << "=================================" << endl;
     cout << "💡 프로젝트 폴더에 'voca_list.csv' 파일을 넣어주세요." << endl;
     cout << "💡 형식 예시: apple,사과 (띄어쓰기 없이 쉼표로만 구분)" << endl;
@@ -153,24 +151,18 @@ void VocaManager::loadFromCSV() {
         if (line.empty()) continue;
 
         stringstream ss(line);
-        string eng, kor, extra; // extra: 뒤에 붙은 숫자들을 받아낼 쓰레기통
+        string eng, kor, extra;
 
-        // 1. 첫 번째 쉼표까지 읽어서 영어(eng)에 저장
         if (getline(ss, eng, ',')) {
-            // 2. 두 번째 쉼표까지만 읽어서 한글 뜻(kor)에 저장 (✨여기서 끊는 게 핵심!)
             if (getline(ss, kor, ',')) {
-                // 뒤에 숫자가 더 있더라도 getline이 쉼표에서 끊었으므로 kor는 깨끗합니다.
-                // 남은 숫자들은 읽지 않고 다음 줄로 넘어갑니다.
             }
             else {
-                // 만약 줄에 쉼표가 하나뿐이라면(정상적인 경우), 나머지 전체를 kor로 읽음
                 ss.clear();
                 ss.str(line);
                 getline(ss, eng, ',');
                 getline(ss, kor);
             }
 
-            // --- 우리가 만든 슈퍼 트리밍(cleanData) 적용 ---
             auto cleanData = [](string& s) {
                 s.erase(0, s.find_first_not_of(" \t\r\n"));
                 if (!s.empty()) s.erase(s.find_last_not_of(" \t\r\n") + 1);
@@ -185,19 +177,18 @@ void VocaManager::loadFromCSV() {
             cleanData(kor);
 
             if (!eng.empty() && !kor.empty()) {
-                // ✨ 핵심: db.insertWord가 성공(true)하면 성공 카운트, 실패(false)하면 실패 카운트!
                 if (db.insertWord(eng, kor)) {
-                    successCount++; // 이제 화면에 숫자가 올라갑니다!
+                    successCount++;
                 }
                 else {
-                    failCount++;    // 중복된 단어일 경우 여기가 올라갑니다.
+                    failCount++;
                 }
             }
         }
     }
 
     file.close();
-    wordList = db.loadAllWords(currentUser); // 갱신
+    wordList = db.loadAllWords(currentUser);
 
     cout << "\n✅ 처리가 완료되었습니다!" << endl;
     cout << "   - 성공적으로 추가된 단어: " << successCount << "건" << endl;
@@ -208,43 +199,103 @@ void VocaManager::loadFromCSV() {
 }
 
 void VocaManager::showAllWords() {
-    cout << "\n==================================================================================================================================" << endl;
-    cout << "                                                    📚 전체 단어 목록                                                                    " << endl;
-    cout << "==================================================================================================================================" << endl;
+    string keyword = "";
 
-    cout << "  " << formatLeft("[ 영단어 ]", 25) << " | " << formatLeft("[ 한글 뜻 ]", 80) << " | " << formatLeft("[오답]", 8) << " | [레벨]" << endl;
-    cout << "----------------------------------------------------------------------------------------------------------------------------------" << endl;
+    while (true) {
+        system("cls");
+        cout << "\n==================================================================================================================================" << endl;
+        cout << "                                                    📚 전체 단어 목록                                                            " << endl;
+        cout << "==================================================================================================================================" << endl;
+        cout << "  " << formatLeft("[ 영단어 ]", 25) << " | " << formatLeft("[ 한글 뜻 ]", 80) << " | " << formatLeft("[오답]", 8) << " | [레벨]" << endl;
+        cout << "----------------------------------------------------------------------------------------------------------------------------------" << endl;
 
-    for (const auto& w : wordList) {
-        cout << "  " << formatLeft(w.english, 25) << " | " << formatLeft(w.korean, 80) << " | " << formatLeft(to_string(w.failCount) + "회", 8) << " | Lv." << w.level << endl;
+        int displayCount = 0;
+        for (const auto& w : wordList) {
+            if (keyword.empty() || w.english.find(keyword) != string::npos || w.korean.find(keyword) != string::npos) {
+                cout << "  " << formatLeft(w.english, 25) << " | " << formatLeft(w.korean, 80) << " | " << formatLeft(to_string(w.failCount) + "회", 8) << " | Lv." << w.level << endl;
+                displayCount++;
+            }
+        }
+        cout << "==================================================================================================================================" << endl;
+
+        if (keyword.empty()) {
+            cout << "총 " << displayCount << "개의 단어가 등록되어 있습니다." << endl;
+        }
+        else {
+            cout << "🔍 '" << keyword << "' 검색 결과: 총 " << displayCount << "개 발견" << endl;
+        }
+
+        int padLines = 20 - displayCount;
+        if (padLines > 0) {
+            for (int i = 0; i < padLines; i++) cout << "\n";
+        }
+
+        cout << "\n▶ 검색할 단어/뜻을 입력하세요 (초기화: 1 / 뒤로가기: 0) : ";
+        string input;
+        getline(cin, input);
+
+        if (input == "0") break;
+        else if (input == "1") keyword = "";
+        else if (input.empty() || input.find_first_not_of(" \t") == string::npos) continue;
+        else keyword = input;
     }
-    cout << "==================================================================================================================================" << endl;
-    cout << "총 " << wordList.size() << "개의 단어가 등록되어 있습니다." << endl;
 }
 
 void VocaManager::showReviewList() {
     long long now = time(0);
-    cout << "\n==================================================================================================================================" << endl;
-    cout << "                                            🎯 오답 단어 몰아보기                                                                " << endl;
-    cout << "==================================================================================================================================" << endl;
+    string keyword = "";
 
-    cout << "  " << formatLeft("[ 영단어 ]", 25) << " | " << formatLeft("[ 한글 뜻 ]", 80) << " | " << formatLeft("[오답]", 8) << " | [레벨]" << endl;
-    cout << "----------------------------------------------------------------------------------------------------------------------------------" << endl;
-
-    int reviewCount = 0;
-    for (const auto& w : wordList) {
-        if (w.nextReview <= now || w.level == 0) {
-            cout << "  " << formatLeft(w.english, 25) << " | " << formatLeft(w.korean, 80) << " | " << formatLeft(to_string(w.failCount) + "회", 8) << " | Lv." << w.level << endl;
-            reviewCount++;
-        }
-    }
-
-    if (reviewCount == 0) cout << "✨ 현재 복습할 단어가 없습니다! ✨" << endl;
-    else {
+    while (true) {
+        system("cls");
+        cout << "\n==================================================================================================================================" << endl;
+        cout << "                                              🎯 오답 단어 몰아보기                                                              " << endl;
+        cout << "==================================================================================================================================" << endl;
+        cout << "  " << formatLeft("[ 영단어 ]", 25) << " | " << formatLeft("[ 한글 뜻 ]", 80) << " | " << formatLeft("[오답]", 8) << " | [레벨]" << endl;
         cout << "----------------------------------------------------------------------------------------------------------------------------------" << endl;
-        cout << "🔔 현재 복습이 필요한 단어: " << reviewCount << "개" << endl;
+
+        int totalReviewCount = 0;
+        int displayCount = 0;
+
+        for (const auto& w : wordList) {
+            if (w.nextReview <= now || w.level == 0) {
+                totalReviewCount++;
+                if (keyword.empty() || w.english.find(keyword) != string::npos || w.korean.find(keyword) != string::npos) {
+                    cout << "  " << formatLeft(w.english, 25) << " | " << formatLeft(w.korean, 80) << " | " << formatLeft(to_string(w.failCount) + "회", 8) << " | Lv." << w.level << endl;
+                    displayCount++;
+                }
+            }
+        }
+
+        if (totalReviewCount == 0) {
+            cout << "✨ 현재 복습할 단어가 없습니다! ✨" << endl;
+            cout << "==================================================================================================================================\n" << endl;
+            system("pause > nul");
+            return;
+        }
+
+        cout << "==================================================================================================================================\n" << endl;
+
+        if (keyword.empty()) {
+            cout << "🔔 현재 복습이 필요한 단어: " << displayCount << "개" << endl;
+        }
+        else {
+            cout << "🔍 '" << keyword << "' 검색 결과: " << displayCount << "개 발견 (전체 복습 대상: " << totalReviewCount << "개)" << endl;
+        }
+
+        int padLines = 20 - displayCount;
+        if (padLines > 0) {
+            for (int i = 0; i < padLines; i++) cout << "\n";
+        }
+
+        cout << "\n▶ 검색할 단어/뜻을 입력하세요 (초기화: 1 / 뒤로가기: 0) : ";
+        string input;
+        getline(cin, input);
+
+        if (input == "0") break;
+        else if (input == "1") keyword = "";
+        else if (input.empty() || input.find_first_not_of(" \t") == string::npos) continue;
+        else keyword = input;
     }
-    cout << "==================================================================================================================================\n" << endl;
 }
 
 void VocaManager::runQuiz(bool isIntensive) {
@@ -258,8 +309,26 @@ void VocaManager::runQuiz(bool isIntensive) {
     vector<Word*> targetWords;
 
     for (auto& w : wordList) {
-        if (isIntensive) { if (w.failCount > 0 || w.level == 0) targetWords.push_back(&w); }
-        else { if (w.nextReview <= now) targetWords.push_back(&w); }
+        if (isIntensive) {
+            if (w.failCount > 0) targetWords.push_back(&w);
+        }
+        else {
+            if (w.nextReview <= now || w.level == 0) targetWords.push_back(&w);
+        }
+    }
+
+    if (isIntensive && targetWords.size() < 20) {
+        system("cls");
+        cout << "\n==========================================================================" << endl;
+        cout << "                       🚫 집중 퀴즈 입장 불가 🚫                          " << endl;
+        cout << "==========================================================================\n" << endl;
+        cout << "  ⚠️ 집중 퀴즈는 '진짜 틀린 오답'이 최소 '20개 이상' 모였을 때만 도전할 수 있습니다." << endl;
+        cout << "  (현재 순수 오답 단어: " << targetWords.size() << "개 / 목표: 20개)\n" << endl;
+        cout << "  일반 퀴즈를 통해 단어를 더 학습하고 오답을 모은 뒤 다시 찾아주세요!" << endl;
+        cout << "\n==========================================================================" << endl;
+        cout << "메인 메뉴로 돌아가려면 아무 키나 누르세요...";
+        system("pause > nul");
+        return;
     }
 
     if (targetWords.empty()) {
@@ -274,7 +343,7 @@ void VocaManager::runQuiz(bool isIntensive) {
     cout << "1. 📝 주관식 (기본)" << endl;
     cout << "2. 🔢 객관식 (4지선다)" << endl;
     cout << "3. 🔀 스크램블 (철자 맞추기)" << endl;
-    cout << "4. ⏱️ 타임어택 (5초 제한 주관식)" << endl;
+    cout << "4. ⏱️ 10초 타임어택 (주관식)" << endl;
     cout << "0. 🔙 뒤로 가기 (메인 메뉴)" << endl;
     cout << "=================================" << endl;
 
@@ -298,6 +367,7 @@ void VocaManager::runQuiz(bool isIntensive) {
         if (count >= maxQuestions) break;
         count++;
         bool isCorrect = false;
+        bool isTimeout = false;
 
         if (mode == 2) {
             vector<string> options = { w->english };
@@ -331,18 +401,65 @@ void VocaManager::runQuiz(bool isIntensive) {
             else cout << "❌ 오답! 정답은 [" << w->english << "] 입니다." << endl;
         }
         else if (mode == 4) {
-            cout << endl;
-            string prompt = "[⏱️ 5초 제한!] Q" + to_string(count) + ". [" + w->korean + "] : ";
-            auto start = chrono::steady_clock::now();
-            string answer = getSafeString(prompt);
-            auto end = chrono::steady_clock::now();
-            auto diff = chrono::duration_cast<chrono::seconds>(end - start).count();
+            /*
+             * [Non-blocking I/O 및 콘솔 렌더링 최적화]
+             * 표준 입력(cin)은 스레드를 블로킹하므로 타이머와 동시 실행이 불가합니다.
+             * 이를 해결하기 위해 _kbhit()과 _getch()를 활용해 비블로킹 방식으로 실시간 키 입력을 감지합니다.
+             * 또한, 화면 갱신 시 system("cls")를 쓰면 심한 깜빡임(Flickering)이 생기므로,
+             * ANSI Escape Code(\33[2K)와 캐리지 리턴(\r)을 결합해 현재 줄만 덮어쓰도록 렌더링을 최적화했습니다.
+             */
+            string answer = "";
+            auto startTime = chrono::steady_clock::now();
+            int limit = 10;
 
-            if (answer == w->english) {
-                if (diff <= 5) isCorrect = true;
-                else cout << "⏰ 정답이지만 " << diff << "초 걸렸습니다. (5초 초과)" << endl;
+            int lastRemaining = -1;
+            string lastAnswer = "[INIT]";
+
+            cout << "\nQ" << count << ". [" << w->korean << "] 의 영단어는?" << endl;
+
+            while (true) {
+                auto currentTime = chrono::steady_clock::now();
+                int elapsed = chrono::duration_cast<chrono::seconds>(currentTime - startTime).count();
+                int remaining = limit - elapsed;
+
+                if (remaining != lastRemaining || answer != lastAnswer) {
+                    cout << "\33[2K\r";
+
+                    if (remaining <= 3) cout << " \033[31m[⏰ " << remaining << "초]\033[0m 정답 입력: " << answer;
+                    else cout << " [⏱️ " << remaining << "초] 정답 입력: " << answer;
+
+                    lastRemaining = remaining;
+                    lastAnswer = answer;
+                }
+
+                if (elapsed >= limit) {
+                    isTimeout = true;
+                    break;
+                }
+
+                if (_kbhit()) {
+                    char ch = _getch();
+                    if (ch == 13) break;
+                    else if (ch == 8) {
+                        if (!answer.empty()) answer.pop_back();
+                    }
+                    else if (ch >= 32 && ch <= 126) {
+                        answer += ch;
+                    }
+                }
+                Sleep(50);
             }
-            else cout << "❌ 오답! 정답은 [" << w->english << "] 입니다." << endl;
+
+            cout << endl;
+
+            if (isTimeout) {
+                cout << "❌ 시간 초과! 너무 늦었습니다. 정답은 [" << w->english << "] 입니다." << endl;
+                isCorrect = false;
+            }
+            else {
+                if (answer == w->english) isCorrect = true;
+                else cout << "❌ 오답! 정답은 [" << w->english << "] 입니다." << endl;
+            }
         }
         else {
             cout << endl;
@@ -374,7 +491,7 @@ void VocaManager::runQuiz(bool isIntensive) {
   .   🎉 CONGRATULATIONS! 🎉   *
     .    * .     * .
 )" << '\n';
-                cout << " 👑 대단합니다! [" << w->english << "] 단어를 완벽하게 마스터했습니다! (Lv.5 도달)\n" << endl;
+                cout << " 대단합니다! [" << w->english << "] 단어를 완벽하게 마스터했습니다! (Lv.5 도달)\n" << endl;
                 Beep(523, 100); Beep(659, 100); Beep(784, 100); Beep(1046, 300);
             }
         }
@@ -407,7 +524,7 @@ void VocaManager::showStartScreen() {
                                                      
 ==========================================================================
 )";
-    cout << "                       [ 영단어 학습 마스터 v6.3 ]" << endl;
+    cout << "                       [ 영단어 학습 마스터 v6.4 ]" << endl;
     cout << "==========================================================================\n" << endl;
     cout << "      오늘도 힘차게 단어를 외워봅시다! 아무 키나 누르면 시작합니다..." << endl;
     system("pause > nul");
@@ -488,16 +605,14 @@ void VocaManager::showAdminMenu() {
         cout << "=================================" << endl;
         cout << "1. 🔄 모든 단어 학습 데이터 초기화 (레벨/오답 0으로)" << endl;
         cout << "2. 🗑️ 특정 단어 영구 삭제" << endl;
+        cout << "3. 🚫 사용자 계정 영구 삭제" << endl;
         cout << "0. 🔙 메인 메뉴로 돌아가기" << endl;
         cout << "=================================" << endl;
 
         int choice = getSafeInputInManager("관리자 명령 선택: ");
 
-        if (choice == 0) {
-            return;
-        }
+        if (choice == 0) return;
         else if (choice == 1) {
-            // ✨ [업데이트] 모든 데이터(점수/레벨 포함) 초기화 안내 및 실행 로직
             cout << "\n⚠️ [초강력 경고] 다음 데이터가 모두 초기화됩니다:" << endl;
             cout << "  - 모든 사용자의 학습 기록 (레벨, 오답 횟수)" << endl;
             cout << "  - 모든 사용자의 누적 점수 및 계정 레벨 (0점, 1레벨로)" << endl;
@@ -505,23 +620,16 @@ void VocaManager::showAdminMenu() {
             string confirm = getSafeString("\n정말 진행하시겠습니까? (y 입력 시 진행): ");
 
             if (confirm == "y" || confirm == "Y") {
-                // 1단계: 단어 통계 지우기
                 bool step1 = db.resetAllWordStats();
-
-                // 2단계: 유저 점수/레벨 지우기 (주의: Database.cpp에 이 함수가 추가되어 있어야 합니다!)
                 bool step2 = db.resetMemberStats();
 
                 if (step1 && step2) {
                     cout << "✅ 성공적으로 모든 데이터와 점수가 초기화되었습니다!" << endl;
                     wordList = db.loadAllWords(currentUser);
                 }
-                else {
-                    cout << "❌ 초기화 중 일부 오류가 발생했습니다. DB 상태를 확인하세요." << endl;
-                }
+                else cout << "❌ 초기화 중 일부 오류가 발생했습니다. DB 상태를 확인하세요." << endl;
             }
-            else {
-                cout << "초기화를 취소했습니다." << endl;
-            }
+            else cout << "초기화를 취소했습니다." << endl;
             system("pause > nul");
         }
         else if (choice == 2) {
@@ -534,9 +642,17 @@ void VocaManager::showAdminMenu() {
                 cout << "✅ [" << target << "] 단어가 DB에서 완전히 삭제되었습니다." << endl;
                 wordList = db.loadAllWords(currentUser);
             }
-            else {
-                cout << "❌ 삭제 실패. 철자가 틀렸거나 DB에 없는 단어입니다." << endl;
-            }
+            else cout << "❌ 삭제 실패. 철자가 틀렸거나 DB에 없는 단어입니다." << endl;
+            system("pause > nul");
+        }
+        else if (choice == 3) {
+            cout << "\n[사용자 계정 삭제 모드] (취소하려면 0 입력)" << endl;
+            string target = getSafeString("삭제할 사용자의 아이디를 정확히 입력하세요: ");
+
+            if (target == "0") continue;
+
+            if (db.deleteUser(target)) cout << "✅ [" << target << "] 사용자의 계정과 모든 학습 기록이 영구 삭제되었습니다." << endl;
+            else cout << "❌ 삭제 실패. 존재하지 않는 아이디입니다." << endl;
             system("pause > nul");
         }
         else {
@@ -546,9 +662,6 @@ void VocaManager::showAdminMenu() {
     }
 }
 
-// =====================================================================
-// ✨ [v6.0 추가] 로그인 및 회원가입 UI
-// =====================================================================
 bool VocaManager::showAuthMenu() {
     while (true) {
         system("cls");
@@ -592,15 +705,10 @@ bool VocaManager::showAuthMenu() {
             }
             system("pause > nul");
         }
-        else if (choice == 0) {
-            return false;
-        }
+        else if (choice == 0) return false;
     }
 }
 
-// =====================================================================
-// ✨ [v6.1 업데이트] 명예의 전당 (칭호 시스템 추가)
-// =====================================================================
 void VocaManager::showRanking() {
     system("cls");
     cout << "==========================================================================" << endl;

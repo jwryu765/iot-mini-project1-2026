@@ -5,7 +5,12 @@
 
 using namespace std;
 
-// (숫자 입력 무한 버퍼 방지용 마법의 함수)
+/*
+ * [안전한 정수 입력 처리기]
+ * cin >> inputNum 사용 시 문자가 입력되면 버퍼 스트림이 고장나 무한 루프에 빠지는 치명적 결함이 있습니다.
+ * 이를 방어하기 위해 입력을 항상 문자열(getline)로 먼저 받고, stringstream을 통해
+ * 정수형으로 안전하게 캐스팅(변환)하여 예외를 완벽히 차단하는 방어적 프로그래밍을 적용했습니다.
+ */
 int getSafeInput(const string& prompt) {
     string inputStr;
     int inputNum;
@@ -45,20 +50,14 @@ int main() {
         return 1;
     }
 
-    // 1. 멋진 타이틀 화면 (프로그램 켤 때 한 번만 나옴)
     manager.showStartScreen();
 
-    // ✨ [v6.3 핵심] 외부 루프: 로그아웃 시 다시 로그인 창으로 돌아오게 만드는 울타리
     while (true) {
-
-        // 2. 로그인 창 띄우기
         if (!manager.showAuthMenu()) {
-            // 인증 창에서 0번을 누르면 프로그램이 완전히 끝납니다.
             cout << "프로그램을 종료합니다." << endl;
             return 0;
         }
 
-        // 3. 내부 루프: 메인 시스템
         while (true) {
             system("cls");
             cout << "=================================" << endl;
@@ -72,7 +71,6 @@ int main() {
             cout << "6. 📊 내 학습 통계 보기" << endl;
             cout << "7. ➕ 단어 수동 추가" << endl;
             cout << "8. 📂 CSV 파일로 대량 추가" << endl;
-            // ❌ 기존에 있던 '9. 시스템 관리자 메뉴' 텍스트는 여기서 과감하게 지워버립니다!
             cout << "9. 🔓 로그아웃 (계정 전환)" << endl;
             cout << "0. 🚪 프로그램 완전 종료" << endl;
             cout << "=================================" << endl;
@@ -81,16 +79,13 @@ int main() {
 
             if (choice == 1) manager.runQuiz(false);
             else if (choice == 2) manager.runQuiz(true);
-            else if (choice == 3) { manager.showAllWords(); cout << "\n메인 메뉴로 돌아가려면 아무 키나 누르세요..."; system("pause > nul"); }
-            else if (choice == 4) { manager.showReviewList(); cout << "\n메인 메뉴로 돌아가려면 아무 키나 누르세요..."; system("pause > nul"); }
-            else if (choice == 5) { manager.showRanking(); }
-            else if (choice == 6) { manager.showStatistics(); }
+            else if (choice == 3) manager.showAllWords();
+            else if (choice == 4) manager.showReviewList();
+            else if (choice == 5) manager.showRanking();
+            else if (choice == 6) manager.showStatistics();
             else if (choice == 7) { manager.addWord(); cout << "\n메인 메뉴로 돌아가려면 아무 키나 누르세요..."; system("pause > nul"); }
-            else if (choice == 8) { manager.loadFromCSV(); }
-
-            // ✨ [핵심] 화면에는 없지만, 999를 치면 관리자 메뉴가 열립니다! (개발자만 아는 비밀 공간)
-            else if (choice == 99) { manager.showAdminMenu(); }
-
+            else if (choice == 8) manager.loadFromCSV();
+            else if (choice == 99) manager.showAdminMenu();
             else if (choice == 9) {
                 cout << "\n✅ 안전하게 로그아웃 되었습니다. 메인 화면으로 돌아갑니다." << endl;
                 system("pause > nul");
