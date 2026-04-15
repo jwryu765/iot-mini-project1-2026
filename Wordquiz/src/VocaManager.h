@@ -4,6 +4,8 @@
 #include "Word.h"
 #include "DBManager.h" 
 
+// VocaManager 클래스는 단어장 관리, 퀴즈 실행, 사용자 인터페이스 등을 담당하는 클래스입니다.
+// DBManager를 통해 데이터베이스와 상호작용하며, 사용자 인증과 다양한 기능을 제공합니다.
 class VocaManager {
 private:
     std::vector<Word> wordList;

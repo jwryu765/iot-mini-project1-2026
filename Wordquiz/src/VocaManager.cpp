@@ -1,21 +1,22 @@
-#include "VocaManager.h"
-#include <iostream>
-#include <algorithm> 
-#include <random>    
-#include <iomanip> 
-#include <ctime> 
-#include <chrono>
-#include <string>
-#include <sstream> 
-#include <limits> 
-#include <cmath>  
-#include <cctype>
-#include <windows.h> 
-#include <fstream>   
-#include <conio.h>   
+#include "VocaManager.h" // VocaManager 클래스의 정의와 DBManager, Word 클래스 포함
+#include <iostream> // 입출력 스트림, 입출력할때 사용
+#include <algorithm> // std::find_if, std::transform 등 알고리즘 함수, 단어목록에을 정렬하거나 순서를 무작위로 섞을 때 사용
+#include <random> // 무작위 수 생성, 퀴즈에서 중복 없이 단어를 뽑기위해 사용
+#include <iomanip> // std::setw, std::left 등 출력 형식 조정, 목록 표 형식 맞출 때 사용
+#include <ctime> // time(0)으로 현재 시간 가져오기, DB에 저장할 날짜 계산할 때 사용
+#include <chrono> // std::chrono::system_clock으로 더 정밀한 시간 측정
+#include <string> // std::string 클래스, 문자열 조작과 저장에 사용
+#include <sstream> // std::stringstream으로 문자열을 숫자로 변환하거나, CSV 파싱 등에 사용, 파싱이란 문자열을 특정 구분자로 나누어서 필요한 데이터만 추출하는 작업입니다.
+#include <limits> // std::numeric_limits로 입력 버퍼 정리할 때 사용
+#include <cmath>  // 수학 함수, 예를 들어 pow()로 복습 간격 계산할 때 사용
+#include <cctype> // std::isalpha, std::isspace 등 문자 검사 함수, 글자 입력 검증할 때 사용(대소문자, 공백 등)
+#include <windows.h> // Windows API로 콘솔 색상 변경이나 커서 위치 조정 등에 사용
+#include <fstream> // 파일 입출력, CSV 파일 읽을 때 사용
+#include <conio.h> // _kbhit()와 _getch()로 키 입력 처리할 때 사용, 엔터 없이 키 입력받을 때 유용합니다.
 
 using namespace std;
 
+// 한글을 넣거나, 특수문자만 넣는 실수를 방지하기 위해
 bool isValidEnglish(const string& str) {
     if (str.empty() || str == "0") return true;
     bool hasAlphabet = false;
@@ -27,6 +28,7 @@ bool isValidEnglish(const string& str) {
     return hasAlphabet;
 }
 
+// 단어의 뜻인 한글을 입력해야 하는데 영어로만 대충 적고 넘어가는 것을 막기 위해
 bool isValidKorean(const string& str) {
     if (str.empty() || str == "0") return true;
     for (char c : str) {
@@ -35,6 +37,7 @@ bool isValidKorean(const string& str) {
     return false;
 }
 
+// 사용자가 실수로 엔터만 치거나 스페이스바만 입력했을때 프로그램이 꼬이는걸 방지하기 위해
 string getSafeString(const string& prompt) {
     string inputStr;
     while (true) {
@@ -48,6 +51,13 @@ string getSafeString(const string& prompt) {
     }
 }
 
+/*
+입력버퍼 오류와 잘못된 차입 입력을 막기 위해, ANSI Escape Code로 이전 줄을 지우고 다시 입력받는 방어적 프로그래밍을 적용했습니다.
+ANSI Escape Code 설명: \x1b[1A (커서를 한 줄 위로 이동) + \x1b[2K (현재 줄 전체 지우기) -> 이 조합으로 잘못된 입력이 들어왔을 때 깔끔하게 지우고 다시 입력받도록 했습니다.
+ANSI Escape Code란? 터미널에서 텍스트의 색상, 스타일, 커서 위치 등을 제어할 수 있는 특수한 문자열 시퀀스입니다. 
+\x1b는 ESC(이스케이프) 문자를 나타내며, 뒤에 오는 [1A, [2K 등은 각각 커서 이동과 줄 지우기 등의 명령을 의미합니다. 
+이를 활용하여 잘못된 입력이 들어왔을 때 화면을 깔끔하게 정리하고 다시 입력받도록 했습니다.
+*/
 int getSafeInputInManager(const string& prompt) {
     string inputStr;
     int inputNum;
@@ -68,6 +78,8 @@ int getSafeInputInManager(const string& prompt) {
     }
 }
 
+// 영어와 한글의 출력 너비 차이 때문에 깨지는 표 형식을 똑바로 맞추기 위해(영어는 1바이트라 너비 1이지만, 한글은 3바이트라 너비가 2임)
+// 문자열의 실제 화면 출력 너비를 계산해서, 목표 너비에 맞게 공백을 추가하는 함수입니다.
 string formatLeft(const string& str, int targetWidth) {
     int displayWidth = 0;
     for (size_t i = 0; i < str.length(); ) {
@@ -83,11 +95,13 @@ string formatLeft(const string& str, int targetWidth) {
     return str + string(padding, ' ');
 }
 
+// VocaManager 클래스의 멤버 함수 구현입니다.
 bool VocaManager::init() {
     if (db.connect()) return true;
     return false;
 }
 
+// 단어 수동 추가 함수입니다. 사용자에게 영어 단어와 한글 뜻을 입력받아서 DB에 저장하고, 단어 목록을 갱신합니다.
 void VocaManager::addWord() {
     cout << "\n=================================" << endl;
     cout << "         ➕ 단어 수동 추가       " << endl;
@@ -120,11 +134,15 @@ void VocaManager::addWord() {
 
     if (db.insertWord(eng, kor)) {
         cout << "✅ DB에 단어 추가 완료! (" << eng << " : " << kor << ")" << endl;
-        wordList = db.loadAllWords(currentUser);
+
+        // 최적화: DB에 단어를 추가한 후, 무거운 loadAllWords()를 다시 호출하는 대신
+        // 현재 메모리에 있는 wordList 벡터에만 방금 추가한 단어를 살짝 얹어줍니다. (메모리 I/O 최적화)
+        wordList.push_back(Word(0, eng, kor, 0, 0, time(0)));
     }
     else cout << "❌ DB 저장 실패." << endl;
 }
 
+// CSV 파일로 단어를 대량 추가하는 함수입니다. 프로젝트 폴더에 'voca_list.csv' 파일을 넣으면, 그 파일을 읽어서 단어를 추가합니다.
 void VocaManager::loadFromCSV() {
     cout << "\n=================================" << endl;
     cout << "     📂 CSV 파일로 단어 추가     " << endl;
@@ -147,6 +165,7 @@ void VocaManager::loadFromCSV() {
 
     cout << "\n데이터를 분석하고 DB에 저장하는 중..." << endl;
 
+	// 최적화: CSV 파일을 한 줄씩 읽어서 바로 DB에 저장하는 방식으로 구현했습니다.
     while (getline(file, line)) {
         if (line.empty()) continue;
 
@@ -163,6 +182,9 @@ void VocaManager::loadFromCSV() {
                 getline(ss, kor);
             }
 
+			// t=Tab, r=Carriage Return, n=New Line
+			// 최적화: CSV에서 읽어온 데이터는 공백이나 따옴표가 붙어있을 수 있어서, 이를 제거하는 클린업 함수를 람다로 정의해서 재사용했습니다. (코드 중복 제거)
+			// 일회성으로 간단하게 사용할 함수라 람다로 정의했지만, 더 복잡한 로직이 필요하다면 별도의 멤버 함수로 분리하는 것도 고려할 수 있습니다.
             auto cleanData = [](string& s) {
                 s.erase(0, s.find_first_not_of(" \t\r\n"));
                 if (!s.empty()) s.erase(s.find_last_not_of(" \t\r\n") + 1);
@@ -187,6 +209,7 @@ void VocaManager::loadFromCSV() {
         }
     }
 
+	// 최적화: CSV 파일을 다 읽은 후에 한 번만 DB에서 전체 단어 목록을 다시 불러와서 wordList를 갱신합니다. (메모리 I/O 최적화)
     file.close();
     wordList = db.loadAllWords(currentUser);
 
@@ -198,6 +221,7 @@ void VocaManager::loadFromCSV() {
     system("pause > nul");
 }
 
+// 전체 단어 목록을 보여주는 함수입니다. 검색 기능도 포함되어 있어서, 원하는 단어를 빠르게 찾을 수 있습니다.
 void VocaManager::showAllWords() {
     string keyword = "";
 
@@ -209,6 +233,7 @@ void VocaManager::showAllWords() {
         cout << "  " << formatLeft("[ 영단어 ]", 25) << " | " << formatLeft("[ 한글 뜻 ]", 80) << " | " << formatLeft("[오답]", 8) << " | [레벨]" << endl;
         cout << "----------------------------------------------------------------------------------------------------------------------------------" << endl;
 
+		// 최적화: 단어 목록을 한 번에 모두 보여주는 대신, 검색 키워드가 있을 때만 해당 단어들을 필터링해서 보여줍니다. (검색 기능과 목록 표시를 통합하여 사용자 경험 개선)
         int displayCount = 0;
         for (const auto& w : wordList) {
             if (keyword.empty() || w.english.find(keyword) != string::npos || w.korean.find(keyword) != string::npos) {
@@ -241,6 +266,8 @@ void VocaManager::showAllWords() {
     }
 }
 
+// 복습이 필요한 단어(오답 단어)를 보여주는 함수입니다. 현재 시간과 비교해서 복습 시기가 된 단어만 필터링해서 보여줍니다. 검색 기능도 포함되어 있습니다.(간격 반복)
+// 복습 시기가 된 단어가 없으면 친절한 메시지와 함께 메인 메뉴로 돌아갑니다.
 void VocaManager::showReviewList() {
     long long now = time(0);
     string keyword = "";
@@ -298,6 +325,7 @@ void VocaManager::showReviewList() {
     }
 }
 
+// 퀴즈를 실행하는 함수입니다. 일반 퀴즈와 집중 퀴즈를 구분해서, 풀어야 하는 단어 목록을 다르게 가져옵니다. 집중 퀴즈는 오답이 20개 이상 모였을 때만 도전할 수 있습니다.
 void VocaManager::runQuiz(bool isIntensive) {
     if (wordList.empty()) {
         cout << "단어장이 비어있습니다." << endl;
@@ -305,6 +333,7 @@ void VocaManager::runQuiz(bool isIntensive) {
         return;
     }
 
+	// 최적화: 퀴즈에 사용할 단어 목록을 미리 필터링해서 벡터에 담아둡니다. 집중 퀴즈는 오답이 있는 단어만, 일반 퀴즈는 복습 시기가 된 단어만 대상으로 합니다. (메모리 I/O 최적화)
     long long now = time(0);
     vector<Word*> targetWords;
 
@@ -317,6 +346,7 @@ void VocaManager::runQuiz(bool isIntensive) {
         }
     }
 
+	// 집중 퀴즈는 오답이 20개 이상 모였을 때만 도전할 수 있도록 제한합니다. (학습 효과 극대화)
     if (isIntensive && targetWords.size() < 20) {
         system("cls");
         cout << "\n==========================================================================" << endl;
@@ -331,6 +361,7 @@ void VocaManager::runQuiz(bool isIntensive) {
         return;
     }
 
+	// 퀴즈에 사용할 단어가 없는 경우, 친절한 메시지와 함께 메인 메뉴로 돌아갑니다.
     if (targetWords.empty()) {
         cout << "😎 지금 풀 수 있는 퀴즈가 없습니다!" << endl;
         system("pause > nul");
@@ -355,6 +386,7 @@ void VocaManager::runQuiz(bool isIntensive) {
         mode = 1;
     }
 
+	// 최적화: 퀴즈에 사용할 단어 목록을 무작위로 섞어서, 매번 다른 문제 순서로 퀴즈를 풀 수 있도록 했습니다. (학습 효과 극대화)
     random_device rd;
     mt19937 g(rd());
     shuffle(targetWords.begin(), targetWords.end(), g);
@@ -392,6 +424,7 @@ void VocaManager::runQuiz(bool isIntensive) {
             if (ansNum == correctNum) isCorrect = true;
             else cout << "❌ 오답! 정답은 [" << w->english << "] 입니다." << endl;
         }
+
         else if (mode == 3) {
             string scrambled = w->english;
             if (scrambled.length() > 1) while (scrambled == w->english) shuffle(scrambled.begin(), scrambled.end(), g);
@@ -400,14 +433,15 @@ void VocaManager::runQuiz(bool isIntensive) {
             if (answer == w->english) isCorrect = true;
             else cout << "❌ 오답! 정답은 [" << w->english << "] 입니다." << endl;
         }
+
         else if (mode == 4) {
             /*
-             * [Non-blocking I/O 및 콘솔 렌더링 최적화]
-             * 표준 입력(cin)은 스레드를 블로킹하므로 타이머와 동시 실행이 불가합니다.
-             * 이를 해결하기 위해 _kbhit()과 _getch()를 활용해 비블로킹 방식으로 실시간 키 입력을 감지합니다.
-             * 또한, 화면 갱신 시 system("cls")를 쓰면 심한 깜빡임(Flickering)이 생기므로,
-             * ANSI Escape Code(\33[2K)와 캐리지 리턴(\r)을 결합해 현재 줄만 덮어쓰도록 렌더링을 최적화했습니다.
-             */
+            [Non-blocking I/O 및 콘솔 렌더링 최적화]
+            표준 입력(cin)은 스레드를 블로킹하므로 타이머와 동시 실행이 불가합니다.
+            이를 해결하기 위해 _kbhit()과 _getch()를 활용해 비블로킹 방식으로 실시간 키 입력을 감지합니다.
+            또한, 화면 갱신 시 system("cls")를 쓰면 심한 깜빡임(Flickering)이 생기므로,
+            ANSI Escape Code(\33[2K)와 캐리지 리턴(\r)을 결합해 현재 줄만 덮어쓰도록 렌더링을 최적화했습니다.
+            */
             string answer = "";
             auto startTime = chrono::steady_clock::now();
             int limit = 10;
@@ -461,6 +495,7 @@ void VocaManager::runQuiz(bool isIntensive) {
                 else cout << "❌ 오답! 정답은 [" << w->english << "] 입니다." << endl;
             }
         }
+
         else {
             cout << endl;
             string prompt = "Q" + to_string(count) + ". [" + w->korean + "] 의 영단어는? : ";
@@ -512,6 +547,7 @@ void VocaManager::runQuiz(bool isIntensive) {
     system("pause > nul");
 }
 
+// 프로그램 시작 화면을 보여주는 함수입니다.
 void VocaManager::showStartScreen() {
     system("cls");
     cout << R"(
@@ -530,6 +566,7 @@ void VocaManager::showStartScreen() {
     system("pause > nul");
 }
 
+// 사용자의 학습 통계를 보여주는 함수입니다. 레벨별 단어 분포와 오답이 많은 단어 TOP 10을 시각적으로 보여줍니다.
 void VocaManager::showStatistics() {
     system("cls");
     cout << "==========================================================================" << endl;
@@ -581,6 +618,7 @@ void VocaManager::showStatistics() {
     system("pause > nul");
 }
 
+// 관리자 메뉴를 보여주는 함수입니다. 관리자 비밀번호를 입력받아서 인증을 거친 뒤, 모든 단어 데이터 초기화, 특정 단어 삭제, 사용자 계정 삭제 등의 고급 기능을 제공합니다.
 void VocaManager::showAdminMenu() {
     system("cls");
     cout << "\n=================================" << endl;
@@ -662,6 +700,7 @@ void VocaManager::showAdminMenu() {
     }
 }
 
+// 계정 인증 메뉴를 보여주는 함수입니다. 로그인과 회원가입 기능을 제공하며, 로그인 성공 시 해당 사용자의 단어 목록을 DB에서 불러옵니다. 로그인 실패 시 친절한 메시지와 함께 재시도할 수 있도록 합니다.
 bool VocaManager::showAuthMenu() {
     while (true) {
         system("cls");
@@ -709,6 +748,8 @@ bool VocaManager::showAuthMenu() {
     }
 }
 
+// 명예의 전당 랭킹 화면을 보여주는 함수입니다. DB에서 누적 점수 상위 5명의 사용자 정보를 가져와서, 아이디, 칭호(레벨), 점수를 시각적으로 멋지게 보여줍니다.
+// 랭킹이 비어있을 때는 친절한 메시지를 띄워줍니다.
 void VocaManager::showRanking() {
     system("cls");
     cout << "==========================================================================" << endl;
