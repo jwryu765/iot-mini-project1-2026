@@ -513,7 +513,7 @@ void VocaManager::runQuiz(bool isIntensive) {
                 w->level++;
                 if (w->level == 5) justMastered = true;
             }
-            int intervals[] = { 0, 1, 10, 1440, 4320, 10080 };
+            int intervals[] = { 0, 1440, 4320, 10080, 20160, 43200 };
             w->nextReview = time(0) + (intervals[w->level] * 60);
 
             if (!justMastered) {
@@ -522,7 +522,7 @@ void VocaManager::runQuiz(bool isIntensive) {
             }
             else {
                 cout << R"(
-    * .  * .   * .
+    * .  * .   * .  
   .   🎉 CONGRATULATIONS! 🎉   *
     .    * .     * .
 )" << '\n';
@@ -593,6 +593,16 @@ void VocaManager::showStatistics() {
         for (int b = barLength; b < 40; b++) cout << "□";
         cout << "  " << levelCounts[i] << "개" << endl;
     }
+
+    // ========================================================================
+    // ⭐ 새로 추가된 부분: 에빙하우스 간격 복습 주기 안내 (Legend)
+    // ========================================================================
+    cout << "\n\n [ 🧠 에빙하우스 간격 복습 주기 안내 ]" << endl;
+    cout << "  \033[32mLv.5\033[0m : +30일 (마스터)  | \033[36mLv.4\033[0m : +14일 (안정기)" << endl;
+    cout << "  \033[34mLv.3\033[0m : + 7일 (정착기)  | \033[33mLv.2\033[0m : + 3일 (형성기)" << endl;
+    cout << "  \033[35mLv.1\033[0m : + 1일 (내일)    | \033[31mLv.0\033[0m : + 0일 (오늘 당장!)" << endl;
+    cout << "  * 단어를 틀릴 경우 즉시 \033[31mLv.0\033[0m으로 강등되어 망각을 촘촘하게 방어합니다." << endl;
+    // ========================================================================
 
     cout << "\n\n [ ☠️ 마의 오답 TOP 10 ]" << endl;
 
@@ -750,6 +760,7 @@ bool VocaManager::showAuthMenu() {
 
 // 명예의 전당 랭킹 화면을 보여주는 함수입니다. DB에서 누적 점수 상위 5명의 사용자 정보를 가져와서, 아이디, 칭호(레벨), 점수를 시각적으로 멋지게 보여줍니다.
 // 랭킹이 비어있을 때는 친절한 메시지를 띄워줍니다.
+// 점수는 문제 하나당 10점씩 누적되며, 칭호는 누적 점수에 따라 브론즈, 실버, 골드, 다이아, 마스터로 구분됩니다. (학습 동기 부여)
 void VocaManager::showRanking() {
     system("cls");
     cout << "==========================================================================" << endl;
@@ -774,10 +785,10 @@ void VocaManager::showRanking() {
 
             string title;
             int s = user.second;
-            if (s >= 1000) title = "[👑 마스터]";
-            else if (s >= 500) title = "[💎 다이아]";
-            else if (s >= 300) title = "[🥇 골드]";
-            else if (s >= 100) title = "[🥈 실버]";
+            if (s >= 6000) title = "[👑 마스터]";
+            else if (s >= 3000) title = "[💎 다이아]";
+            else if (s >= 1000) title = "[🥇 골드]";
+            else if (s >= 500) title = "[🥈 실버]";
             else title = "[🥉 브론즈]";
 
             string displayId = title + " " + user.first;
