@@ -48,7 +48,8 @@ IoT개발자 과정 미니프로젝트1
 * 표준 입력(`cin`)의 블로킹 현상을 해결하기 위해 `_kbhit()` 함수를 도입했습니다. 이를 통해 사용자의 키보드 입력을 대기하는 동안에도 타이머 루프가 중단 없이 실시간으로 작동합니다.
 
 ### 2️⃣ Rendering Optimization (화면 갱신 최적화)
-* 전체 화면을 지우는 `system("cls")` 대신 **ANSI Escape Code**(`\33[2K`, `\r`)를 활용했습니다. 필요한 줄만 실시간으로 갱신하여 콘솔 특유의 깜빡임(Flickering) 현상을 95% 이상 제거했습니다.
+* 타임어택 입력 구간에서는 `system("cls")` 대신 **ANSI Escape Code**(`\33[2K`, `\r`)를 활용해 현재 줄만 갱신하도록 최적화했습니다.
+* 일반 메뉴/화면 전환에서는 `system("cls")`를 사용하며, 추후 전체 화면도 부분 렌더링 방식으로 개선 예정입니다.
 
 ### 3️⃣ Database Normalization & Join (DB 최적화, 위 아키텍처의 DBLayer 참조)
 * 단어 사전(`words`)과 사용자 기록(`user_words`) 테이블을 분리 설계했습니다. `LEFT JOIN`과 `IFNULL`을 조합하여 학습 기록이 없는 데이터도 안전하게 병합하는 효율적인 쿼리를 작성했습니다.
@@ -83,9 +84,9 @@ IoT개발자 과정 미니프로젝트1
     - 대응: conio.h의 _kbhit() 함수를 도입하여 비블로킹(Non-blocking) I/O를 구현함. 입력을 대기하는 중에도 루프가 멈추지 않고 계속해서 시간을 계산하도록 설계하여 실시간 타임어택 기능을 완성함.
 
 - 리스크 2: 화면 전체 갱신(system("cls"))으로 인한 깜빡임(Flickering)
-    - 문제점: 매 초 타이머를 갱신할 때마다 화면 전체를 지우고 새로 그려, 눈이 아플 정도의 심한 화면 떨림 현상이 발생하여 사용자 경험(UX) 저하.
+    - 문제점: 매 초 타이머를 갱신할 때 화면 전체를 지우면 심한 화면 떨림이 발생하여 사용자 경험(UX)이 저하됨.
 
-    - 대응: system("cls") 대신 ANSI 이스케이프 시퀀스(\33[2K, \r)를 활용한 부분 렌더링 기법을 적용. 현재 줄만 지우고 커서를 앞으로 옮기는 최적화를 통해 깜빡임 없는 안정적인 UI를 구축함.
+    - 대응: 타임어택 입력 루프에 ANSI 이스케이프 시퀀스(\33[2K, \r) 기반 부분 렌더링을 적용해 실시간 입력 줄을 깔끔하게 갱신함. 일반 화면 전환 구간은 향후 동일 방식으로 확장 예정.
 
 - 리스크 3: 사용자 입력값에 의한 SQL Injection 보안 취약점
     - 문제점: 단어 추가나 회원가입 시 사용자가 작은따옴표(') 등 특수문자를 입력하면 SQL 쿼리가 조작되거나 DB 에러가 발생할 위험 존재.
@@ -94,14 +95,47 @@ IoT개발자 과정 미니프로젝트1
 
 ## 9. 파일 구성 (File Tree)
 ```text
-WordQuiz
+Wordquiz
 ├── src                         # 핵심 소스 코드 (.cpp, .h)
 │   ├── main.cpp               # 진입점 및 메인 루프
 │   ├── VocaManager.cpp/.h     # 비즈니스 로직 (퀴즈, 통계)
 │   ├── DBManager.cpp/.h       # DB 연동 및 보안 처리
 │   └── Word.h                 # 데이터 모델 클래스
 ├── data                        # 데이터베이스 관련
-│   ├── WordQuiz_dump.sql      # DB 스키마 백업
+│   ├── Wordquiz_backup.sql    # DB 스키마 백업
 │   └── voca_list.csv          # 샘플 단어 데이터
 └── README.md                   # 프로젝트 문서
 ```
+
+## 10. 실행 방법 (Quick Start)
+### 1) DB 준비
+* MySQL 8.0에서 `Wordquiz` 데이터베이스를 생성합니다.
+* `Wordquiz/data/Wordquiz_backup.sql`을 import 합니다.
+
+### 2) C++ 프로젝트 실행
+* `Wordquiz/src/Wordquiz.slnx` 또는 `Wordquiz/src/Wordquiz.vcxproj`를 Visual Studio에서 엽니다.
+* x64 / Debug(또는 Release)로 빌드 후 실행합니다.
+
+### 3) CSV 대량 등록 사용 시
+* 현재 코드 기준(`VocaManager::loadFromCSV`)으로 실행 작업 디렉터리에서 `voca_list.csv`를 찾습니다.
+* 경로 이슈가 있다면 실행 폴더에 CSV를 두거나, 코드에서 절대/상대 경로를 명시적으로 지정해야 합니다.
+
+## 11. 보안 점검 및 개선 계획 (Security Notes)
+현재 프로젝트는 학습/포트폴리오 목적의 데모 버전이며, 아래 항목은 운영 배포 전 반드시 개선이 필요합니다.
+
+### 현재 적용된 보안
+* `mysql_real_escape_string` 기반 입력 이스케이프 처리
+* 사용자별 학습 데이터 분리(`users`, `words`, `user_words`)
+
+### 현재 한계
+* DB 계정 정보가 코드에 하드코딩되어 있음 (`DBManager::connect`)
+* 사용자 비밀번호가 평문으로 저장/검증됨 (`users.password`, `loginUser`)
+* 관리자 비밀번호가 코드에 하드코딩되어 있음 (`showAdminMenu`)
+* SQL 문자열 결합 방식 의존(Prepared Statement 미적용)
+
+### 개선 TODO
+* DB 접속 정보: 환경 변수 또는 로컬 설정 파일(.env 등)로 분리
+* 비밀번호 저장: SHA-256+Salt 이상(권장: Argon2/bcrypt/PBKDF2)으로 해시 저장
+* 인증/권한: 관리자 권한을 DB role 기반으로 분리
+* DB 쿼리: Prepared Statement로 전환
+* 민감 데이터 파일(`*.sql` 내 계정/샘플 비밀번호)은 마스킹 후 배포
